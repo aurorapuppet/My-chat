@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+    <meta charset="UTF-8">
+    <title>微信风格聊天室</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- 登录注册界面 -->
+<div id="login-page">
+    <div id="login-box">
+        <h2 id="login-title">登录</h2>
+        <input id="login-username" type="text" placeholder="用户名">
+        <input id="login-password" type="password" placeholder="密码">
+        <div>
+            <button id="loginBtn">登录</button>
+            <button id="registerBtn" class="switch">注册</button>
+        </div>
+    </div>
+</div>
+
+<!-- 聊天室主界面 -->
+<div id="container">
+    <div id="sidebar">
+        <div id="profile">
+            <img src="assets/user1.jpg" alt="头像" id="avatar">
+            <span id="nickname">我的昵称</span>
+        </div>
+        <ul id="contacts">
+            <li class="contact active">群聊大厅</li>
+        </ul>
+        <button id="logoutBtn">退出登录</button>
+    </div>
+    <div id="main">
+        <div id="chat-header">群聊大厅</div>
+        <ul id="messages"></ul>
+        <div id="chat-input">
+            <input id="messageInput" placeholder="输入消息..." autocomplete="off">
+            <button id="sendBtn">发送</button>
+        </div>
+    </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
