@@ -26,8 +26,18 @@
             <img src="assets/user1.jpg" alt="头像" id="avatar">
             <span id="nickname">我的昵称</span>
         </div>
+        <div class="add-friend-container">
+        <input type="text" id="add-friend-input" placeholder="输入用户名发送请求">
+        <button id="add-friend-btn">发送请求</button>
+        </div>
+        
+        <div id="friend-requests-container" style="display: none;">
+            <h3>好友请求</h3>
+            <ul id="friend-requests-list">
+                </ul>
+        </div>
         <ul id="contacts">
-            <li class="contact active">群聊大厅</li>
+            <li class="contact active" data-username="general">群聊大厅</li>
         </ul>
         <button id="logoutBtn">退出登录</button>
     </div>

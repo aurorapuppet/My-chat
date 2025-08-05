@@ -160,3 +160,57 @@ body {
     background: #059048;
 }
 
+/* ---- 联系人列表样式 ---- */
+#contacts-container {
+    background-color: #f5f5f5; /* 整个联系人列表区域的背景色 */
+    border-right: 1px solid #e0e0e0; /* 右侧的细分隔线 */
+    height: 100%;
+    overflow-y: auto; /* 允许列表内容滚动 */
+}
+
+#contacts {
+    list-style: none; /* 移除列表项的默认标记 */
+    padding: 0;
+    margin: 0;
+}
+
+#contacts li {
+    padding: 15px 10px; /* 列表项的内边距，提供更好的点击区域 */
+    border-bottom: 1px solid #e0e0e0; /* 列表项之间的分隔线 */
+    cursor: pointer; /* 鼠标悬停时显示手型，表示可点击 */
+    transition: background-color 0.2s ease; /* 鼠标悬停时背景色平滑过渡 */
+    display: flex;
+    align-items: center;
+}
+
+#contacts li:hover {
+    background-color: #e6e6e6; /* 鼠标悬停时列表项的背景色 */
+}
+
+/* 激活状态（当前正在聊天的联系人） */
+#contacts li.active {
+    background-color: #c9c9c9; /* 激活状态下的背景色 */
+}
+
+/* 如果你的列表项有头像，可以添加以下样式 */
+#contacts li .avatar {
+    width: 40px; /* 头像大小 */
+    height: 40px;
+    border-radius: 50%; /* 圆形头像 */
+    margin-right: 10px;
+    background-color: #ccc; /* 占位符颜色 */
+}
+
+/* 如果你想实现类似图片的搜索框样式 */
+.search-container {
+    padding: 10px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box; /* 确保 padding 不会增加宽度 */
+}
