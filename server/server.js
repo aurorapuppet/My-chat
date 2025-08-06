@@ -29,13 +29,13 @@ io.on('connection', (socket) => {
     console.log('A user connected');
 
 // 从数据库中载入存在的信息
-    db.query('SELECT username, message, timestamp FROM messages ORDER BY timestamp ASC', (err, results) => {
+    db.query('SELECT sender, msg, timestamp FROM messages WHERE receiver = "general" ORDER BY timestamp ASC', (err, results) => {
         if (err) {
             console.error('Error fetching messages:', err);
             return;
         }
-        results.forEach(msg => {
-            socket.emit('chat message', { username: msg.username, msg: msg.message });
+        results.forEach(message => {
+            socket.emit('chat message', { username: message.sender, msg: message.msg });
         });
     });
 
@@ -226,36 +226,66 @@ io.on('connection', (socket) => {
 
     // 聊天消息
     socket.on('chat message', (msg) => {
-        const username = onlineUsers[socket.id] || '匿名';
-        // 将信息保存到数据库中
-        db.query('INSERT INTO messages (username, message) VALUES (?, ?)', [username, msg], (err, result) => {
-            if (err) {
-                console.error('Error saving message to database:', err);
-                return;
-            }
-            // 发送数据库中的信息到客户端
-            io.emit('chat message', { username, msg });
+        const username = onlineUsers[socket.id];
+        // 将消息保存到数据库
+        db.query('INSERT INTO messages (sender, receiver, msg) VALUES (?, ?, ?)', [username, 'general', msg], (err) => {
+            if (err) console.error('Error saving group message:', err);
         });
+        // 广播消息给所有在线用户
+        io.emit('chat message', { username: username, msg: msg });
     });
 
     // 在现有的 'chat message' 事件下方添加
     socket.on('private message', ({ to, msg }) => {
-        const fromUsername = onlineUsers[socket.id];
-        const toSocketId = userSockets[to];
+    const fromUsername = onlineUsers[socket.id];
+    const toSocketId = userSockets[to];
 
-        // 新增：检查消息内容是否为空
-        if (!msg || !msg.trim()) {
-            socket.emit('system message', '消息不能为空。');
+    if (!msg || !msg.trim()) {
+        socket.emit('system message', '消息不能为空。');
+        return;
+    }
+
+    // 关键修改：将私聊消息保存到数据库
+    db.query('INSERT INTO messages (sender, receiver, msg) VALUES (?, ?, ?)', [fromUsername, to, msg], (err) => {
+        if (err) {
+            console.error('Error saving private message:', err);
             return;
         }
-        if (toSocketId && toSocketId !== socket.id) { // 增加检查，确保不是发给自己
-            // 向私聊对象发送消息
+
+        // 如果用户在线，发送实时消息
+        if (toSocketId && toSocketId !== socket.id) {
             io.to(toSocketId).emit('private message', { from: fromUsername, msg });
-          
+        } 
+        socket.emit('private message', { from: fromUsername, to: to, msg: msg});
+    });
+});
+
+    // 新增 'load history' 事件
+    socket.on('load history', (data) => {
+        const { target } = data;
+        const currentUsername = onlineUsers[socket.id];
+        
+        let query = '';
+        let params = [];
+
+        if (target === 'general') {
+            // 加载群聊历史
+            query = 'SELECT sender, receiver, msg, timestamp FROM messages WHERE receiver = ? ORDER BY timestamp ASC';
+            params = [target];
         } else {
-            // 如果用户不在线，可以向发送者发送一个提示
-            socket.emit('system message', `用户 ${to} 不在线或不存在。`);
+            // 加载私聊历史
+            query = 'SELECT sender, receiver, msg, timestamp FROM messages WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?) ORDER BY timestamp ASC';
+            params = [currentUsername, target, target, currentUsername];
         }
+        
+        db.query(query, params, (err, results) => {
+            if (err) {
+                console.error('Error loading chat history:', err);
+                return;
+            }
+            // 将查询结果发送回客户端
+            socket.emit('chat history', results);
+        });
     });
 
     // 断开连接

@@ -86,8 +86,8 @@ document.getElementById('sendBtn').onclick = () => {
             socket.emit('chat message', msg); // 发送群聊
         } else {
             socket.emit('private message', { to: currentChatTarget, msg }); // 发送私聊
-             // ✅ 新增：在自己界面上立即显示发送的私聊消息
-            appendMessage({ username: `我`, msg: msg, isPrivate: true, to: currentChatTarget });
+              // 注意：这里不需要再调用 appendMessage，因为服务器会把消息发回来
+            appendMessage({ from: window.currentUser, to: currentChatTarget, msg, isPrivate: true }); // 直接渲染自己的私聊消息
         }
         input.value = '';
     }
@@ -96,24 +96,42 @@ document.getElementById('sendBtn').onclick = () => {
 // 封装一个消息渲染函数，便于管理
 function appendMessage(data) {
     const messages = document.getElementById('messages');
-    const li = document.createElement('li');
-    let messageText;
+    const item  = document.createElement('div');
+    // 添加消息项的基本类
+    item.classList.add('message-item');
+    
+    // 创建一个用于包裹消息内容的div
+    const contentDiv = document.createElement('div');
+    contentDiv.classList.add('message-content');
+    
+    let messageText = '';
+    // 修正判断逻辑
+    const isMe = data.from === window.currentUser || data.username === window.currentUser;
 
     if (data.isPrivate) {
         // 私聊消息
-        if (data.from === window.currentUser) { // 自己发送的私聊
-            messageText = `[私聊 -> ${data.to}] ${data.msg}`;
-            li.style.textAlign = 'right'; // 靠右对齐
-        } else { // 接收到的私聊
-            messageText = `[私聊] ${data.from}: ${data.msg}`;
+        if (isMe) {
+            // ✅ 你发送的私聊
+            item.classList.add('my-message');
+            messageText = `<strong>${data.from}</strong>: ${data.msg}`;
+        } else {
+            // ✅ 对方发来的私聊
+            item.classList.add('other-message');
+            messageText = `<strong>${data.from}</strong>: ${data.msg}`;
         }
     } else {
         // 群聊消息
-        messageText = `${data.username}: ${data.msg}`;
+        if (isMe) {
+            item.classList.add('my-message');
+        } else {
+            item.classList.add('other-message');
+        }
+        messageText = `<strong>${data.username}</strong>: ${data.msg}`;
     }
-    
-    li.textContent = messageText;
-    messages.appendChild(li);
+
+    contentDiv.innerHTML = messageText;
+    item.appendChild(contentDiv);
+    messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
 }
 
@@ -240,16 +258,52 @@ contactsList.addEventListener('click', (e) => {
         }
         // 切换聊天时清空消息列表，可以根据需要优化为加载历史记录
         document.getElementById('messages').innerHTML = '';
-        
+        socket.emit('load history', { target: toUser });
         // 提示：你可以在这里添加一个逻辑来从服务器加载私聊历史记录
         // 例如：socket.emit('load history', { target: toUser });
     }
 });
 
+// 新增 'chat history' 事件监听器
+socket.on('chat history', (history) => {
+    const messagesDiv = document.getElementById('messages');
+    messagesDiv.innerHTML = ''; // 先清空，再加载历史记录
+    
+    history.forEach(message => {
+        const item = document.createElement('div');
+        
+        // 关键修改: 为私聊消息添加 my-message 或 other-message 类
+        const isMe = (message.sender === window.currentUser);
+        
+        if (message.receiver === 'general') {
+            // 群聊消息
+            item.classList.add('message-item');
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('message-content', 'other-message'); // 群聊消息默认左对齐
+            contentDiv.innerHTML = `<strong>${message.sender}:</strong> ${message.msg}`;
+            item.appendChild(contentDiv);
+            
+        } else {
+            // 私聊消息
+            item.classList.add('message-item', isMe ? 'my-message' : 'other-message');
+            const contentDiv = document.createElement('div');
+            contentDiv.classList.add('message-content');
+            contentDiv.innerHTML = `<strong>${message.sender}</strong>: ${message.msg}`;
+            item.appendChild(contentDiv);
+        }
+        
+        messagesDiv.appendChild(item);
+    });
+    
+    // 自动滚动到最新消息
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+});
+
 // 接收私聊消息
 socket.on('private message', (data) => {
     // 只有当消息的发送者是当前正在私聊的对象时，才渲染到聊天框中
-    if (currentChatTarget === data.from) {
+    // 并且发送者不是自己
+    if (currentChatTarget === data.from && data.from !== window.currentUser) {
         appendMessage({ username: data.from, msg: data.msg, isPrivate: true });
     }
     

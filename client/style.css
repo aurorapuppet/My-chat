@@ -116,13 +116,7 @@ body {
     font-weight: bold;
     background: #fff;
 }
-#messages {
-    flex: 1;
-    list-style: none;
-    padding: 20px;
-    margin: 0;
-    overflow-y: auto;
-}
+
 #messages li {
     margin-bottom: 10px;
     padding: 8px 12px;
@@ -213,4 +207,55 @@ body {
     border: 1px solid #ccc;
     border-radius: 5px;
     box-sizing: border-box; /* 确保 padding 不会增加宽度 */
+}
+
+/* 聊天消息容器 */
+#messages {
+    flex: 1;
+    padding: 20px;
+    margin: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* 消息之间留点间距 */
+}
+
+/* ---- 消息气泡样式 ---- */
+#messages .message-item {
+    display: flex;
+    margin-bottom: 10px;
+}
+
+#messages .message-content {
+    padding: 8px 12px;
+    border-radius: 18px;
+    max-width: 70%;
+    word-wrap: break-word;
+}
+
+/* 自己的消息（右对齐） */
+#messages .my-message {
+    justify-content: flex-end;
+}
+
+#messages .my-message .message-content {
+    background-color: #dcf8c6; /* 绿色系背景 */
+    color: #000;
+}
+
+/* 别人的消息（左对齐） */
+#messages .other-message {
+    justify-content: flex-start;
+}
+
+#messages .other-message .message-content {
+    background-color: #f1f0f0; /* 灰色系背景 */
+    color: #000;
+}
+
+/* 如果你的消息包含用户名，可以再调整一下样式 */
+.private-chat-header,
+.chat-header {
+    font-weight: bold;
+    margin-right: 5px;
 }
