@@ -266,35 +266,19 @@ contactsList.addEventListener('click', (e) => {
 
 // 新增 'chat history' 事件监听器
 socket.on('chat history', (history) => {
-    const messagesDiv = document.getElementById('messages');
-    messagesDiv.innerHTML = ''; // 先清空，再加载历史记录
-    
+   const messagesDiv = document.getElementById('messages');
+   messagesDiv.innerHTML = '';
+
     history.forEach(message => {
-        const item = document.createElement('div');
-        
-        // 关键修改: 为私聊消息添加 my-message 或 other-message 类
-        const isMe = (message.sender === window.currentUser);
-        
-        if (message.receiver === 'general') {
-            // 群聊消息
-            item.classList.add('message-item');
-            const contentDiv = document.createElement('div');
-            contentDiv.classList.add('message-content', 'other-message'); // 群聊消息默认左对齐
-            contentDiv.innerHTML = `<strong>${message.sender}:</strong> ${message.msg}`;
-            item.appendChild(contentDiv);
-            
-        } else {
-            // 私聊消息
-            item.classList.add('message-item', isMe ? 'my-message' : 'other-message');
-            const contentDiv = document.createElement('div');
-            contentDiv.classList.add('message-content');
-            contentDiv.innerHTML = `<strong>${message.sender}</strong>: ${message.msg}`;
-            item.appendChild(contentDiv);
-        }
-        
-        messagesDiv.appendChild(item);
+        const isPrivate = message.receiver !== 'general';
+        appendMessage({
+            from: message.sender,
+            to: isPrivate ? message.receiver : null,
+            username: message.sender, // 群聊时需要 username
+            msg: message.msg,
+            isPrivate: isPrivate
+        });
     });
-    
     // 自动滚动到最新消息
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 });
