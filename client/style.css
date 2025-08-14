@@ -259,3 +259,27 @@ body {
     font-weight: bold;
     margin-right: 5px;
 }
+
+#login-avatar {
+    padding: 8px;
+    font-size: 16px;
+}
+
+#contacts li img.avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+.message-avatar {
+    width: 32px;       /* 头像宽度 */
+    height: 32px;      /* 头像高度 */
+    border-radius: 50%; /* 圆形头像 */
+    object-fit: cover;  /* 按比例裁剪 */
+    margin-right: 8px;  /* 和文字留点间距 */
+}
+
+.message-content {
+    display: flex;
+    align-items: center; /* 垂直居中对齐 */
+}

@@ -12,8 +12,10 @@ const addFriendInput = document.getElementById('add-friend-input');
 const addFriendBtn = document.getElementById('add-friend-btn');
 const friendRequestsContainer = document.getElementById('friend-requests-container');
 const friendRequestsList = document.getElementById('friend-requests-list');
-
-
+const loginAvatar = document.getElementById('login-avatar');
+const changeAvatarBtn = document.getElementById('change-avatar-btn');
+const newAvatarInput = document.getElementById('new-avatar');
+const sendBtn = document.getElementById('sendBtn');
 
 let isRegisterMode = false;
 
@@ -22,6 +24,7 @@ registerBtn.onclick = () => {
     document.getElementById('login-title').textContent = isRegisterMode ? '注册' : '登录';
     loginBtn.textContent = isRegisterMode ? '注册' : '登录';
     registerBtn.textContent = isRegisterMode ? '返回登录' : '注册';
+    loginAvatar.style.display = isRegisterMode ? 'block' : 'none';
 };
 
 loginBtn.onclick = () => {
@@ -32,15 +35,26 @@ loginBtn.onclick = () => {
         return;
     }
     if (isRegisterMode) {
-        socket.emit('register', { username, password }, (res) => {
-            alert(res.message);
-            if (res.success) {
-                isRegisterMode = false;
-                document.getElementById('login-title').textContent = '登录';
-                loginBtn.textContent = '登录';
-                registerBtn.textContent = '注册';
-            }
-        });
+        const file = loginAvatar.files[0];
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('password', password);
+        if (file) formData.append('avatar', file);
+
+        fetch('/register', {
+            method: 'POST',
+            body: formData
+        }).then(res => res.json())
+          .then(data => {
+              alert(data.message);
+              if (data.success) {
+                  isRegisterMode = false;
+                  document.getElementById('login-title').textContent = '登录';
+                  loginBtn.textContent = '登录';
+                  registerBtn.textContent = '注册';
+                  loginAvatar.style.display = 'none';
+              }
+          });
     } else {
         // 登录成功后
         socket.emit('login', { username, password }, (res) => {
@@ -57,6 +71,13 @@ loginBtn.onclick = () => {
     }
 };
 
+// 登录成功后接收头像
+socket.on('profile info', (data) => {
+    nicknameSpan.textContent = data.username;
+    document.getElementById('avatar').src = data.avatar_url;
+    loginPage.style.display = 'none';
+    chatPage.style.display = 'flex';
+});
 // 页面加载时自动登录
 window.onload = function() {
     const username = localStorage.getItem('chat_username');
@@ -77,65 +98,81 @@ window.onload = function() {
     }
 };
 
-// 聊天发送
-document.getElementById('sendBtn').onclick = () => {
-    const input = document.getElementById('messageInput');
-    const msg = input.value.trim();
-    if (msg && window.currentUser) {
-        if (currentChatTarget === 'general') {
-            socket.emit('chat message', msg); // 发送群聊
-        } else {
-            socket.emit('private message', { to: currentChatTarget, msg }); // 发送私聊
-              // 注意：这里不需要再调用 appendMessage，因为服务器会把消息发回来
-            appendMessage({ from: window.currentUser, to: currentChatTarget, msg, isPrivate: true }); // 直接渲染自己的私聊消息
-        }
-        input.value = '';
+// 发送消息
+sendBtn.onclick = () => {
+    const msg = messageInput.value.trim();
+    if (!msg) return;
+
+    if (currentChatTarget === 'general') {
+        socket.emit('chat message', msg);
+    } else {
+        socket.emit('private message', { to: currentChatTarget, msg });
     }
+    messageInput.value = '';
 };
 
-// 封装一个消息渲染函数，便于管理
+// 更改头像
+changeAvatarBtn.onclick = () => {
+    newAvatarInput.click();
+};
+
+newAvatarInput.onchange = function () {
+    const file = this.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('username', window.currentUser);
+    formData.append('avatar', file);
+
+    fetch('/update-avatar', {
+        method: 'POST',
+        body: formData
+    }).then(res => res.json())
+      .then(data => {
+          alert(data.message);
+          if (data.success) {
+              document.getElementById('avatar').src = data.avatar_url;
+          }
+      });
+};
+
+// 渲染消息（群聊 & 私聊统一）
 function appendMessage(data) {
     const messages = document.getElementById('messages');
-    const item  = document.createElement('div');
-    // 添加消息项的基本类
+    const item = document.createElement('div');
+
+    // 基本类
     item.classList.add('message-item');
-    
-    // 创建一个用于包裹消息内容的div
+
+    // 判断是否是自己发的
+    const isMe = data.username === window.currentUser;
+    item.classList.add(isMe ? 'my-message' : 'other-message');
+
+    // 包裹消息的 div
     const contentDiv = document.createElement('div');
     contentDiv.classList.add('message-content');
-    
-    let messageText = '';
-    // 修正判断逻辑
-    const isMe = data.from === window.currentUser || data.username === window.currentUser;
 
-    if (data.isPrivate) {
-        // 私聊消息
-        if (isMe) {
-            // ✅ 你发送的私聊
-            item.classList.add('my-message');
-            messageText = `<strong>${data.from}</strong>: ${data.msg}`;
-        } else {
-            // ✅ 对方发来的私聊
-            item.classList.add('other-message');
-            messageText = `<strong>${data.from}</strong>: ${data.msg}`;
-        }
-    } else {
-        // 群聊消息
-        if (isMe) {
-            item.classList.add('my-message');
-        } else {
-            item.classList.add('other-message');
-        }
-        messageText = `<strong>${data.username}</strong>: ${data.msg}`;
-    }
+    // 填充头像 + 用户名 + 消息
+    contentDiv.innerHTML = `
+        <img src="${data.avatar_url || 'assets/default.jpg'}" class="message-avatar">
+        <div class="message-text"><strong>${data.username}</strong>: ${data.msg}</div>
+    `;
 
-    contentDiv.innerHTML = messageText;
     item.appendChild(contentDiv);
     messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
 }
 
-// 在 login success block 里
+// 群聊消息
+socket.on('chat message', appendMessage);
+
+// 私聊消息（和群聊一样的结构）
+socket.on('private message', (data) => {
+    document.getElementById('chat-header').textContent = data.username;
+    appendMessage(data);
+});
+
+
+// 好友列表显示头像
 socket.on('friends list', (friends) => {
     // 清空联系人列表并重新渲染
     contactsList.innerHTML = '';
@@ -148,8 +185,9 @@ socket.on('friends list', (friends) => {
     // 渲染好友列表
     friends.forEach(friend => {
         const li = document.createElement('li');
-        li.textContent = friend;
-        li.dataset.username = friend;
+        
+        li.dataset.username = friend.username; // 设置 data-username 属性
+        li.innerHTML = `<img src="${friend.avatar_url || 'assets/default.jpg'}" class="avatar"> ${friend.username}`;
         contactsList.appendChild(li);
     });
 });
@@ -281,26 +319,6 @@ socket.on('chat history', (history) => {
     });
     // 自动滚动到最新消息
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
-});
-
-// 接收私聊消息
-socket.on('private message', (data) => {
-    // 只有当消息的发送者是当前正在私聊的对象时，才渲染到聊天框中
-    // 并且发送者不是自己
-    if (currentChatTarget === data.from && data.from !== window.currentUser) {
-        appendMessage({ username: data.from, msg: data.msg, isPrivate: true });
-    }
-    
-    // 如果收到了来自非当前私聊对象的消息，可以在这里处理未读提示等
-    console.log(`你收到来自 ${data.from} 的新私聊消息: ${data.msg}`);
-});
-
-// 修改群聊消息的接收逻辑，使用新的渲染函数
-socket.on('chat message', (data) => {
-    // 只有当前在群聊大厅时才显示
-    if (currentChatTarget === 'general') {
-        appendMessage({ username: data.username, msg: data.msg, isPrivate: false });
-    }
 });
 
 // 接收系统通知

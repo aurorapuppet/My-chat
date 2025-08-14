@@ -12,6 +12,9 @@
         <h2 id="login-title">登录</h2>
         <input id="login-username" type="text" placeholder="用户名">
         <input id="login-password" type="password" placeholder="密码">
+        <!-- 注册时才显示的文件选择框 -->
+        <input id="login-avatar" type="file" accept="image/*" style="display:none;">
+
         <div>
             <button id="loginBtn">登录</button>
             <button id="registerBtn" class="switch">注册</button>
@@ -23,8 +26,10 @@
 <div id="container">
     <div id="sidebar">
         <div id="profile">
-            <img src="assets/user1.jpg" alt="头像" id="avatar">
+            <img src="assets/default.jpg" alt="头像" id="avatar">
             <span id="nickname">我的昵称</span>
+            <input type="file" id="new-avatar" accept="image/*" style="display:none;">
+            <button id="change-avatar-btn">更改头像</button>
         </div>
         <div class="add-friend-container">
         <input type="text" id="add-friend-input" placeholder="输入用户名发送请求">

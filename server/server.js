@@ -11,6 +11,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+const multer = require('multer');
+const path = require('path');
+
 // MySQL连接配置
 const db = mysql.createConnection({
     host: 'localhost',
@@ -24,6 +27,57 @@ const userSockets = {}; // username -> socket.id
 
 // 提供静态文件服务
 app.use(express.static('../client'));
+
+
+    // 设置存储路径和文件名
+    const storage = multer.diskStorage({
+        destination: function (req, file, cb) {
+            cb(null, path.join(__dirname, '../client/uploads'));
+        },
+        filename: function (req, file, cb) {
+            cb(null, Date.now() + path.extname(file.originalname));
+        }
+    });
+    const upload = multer({ storage });
+
+    // 注册接口（HTTP）
+    app.post('/register', upload.single('avatar'), async (req, res) => {
+        const { username, password } = req.body;
+        const avatar_url = req.file ? `uploads/${req.file.filename}` : 'assets/default.jpg';
+
+        db.query('SELECT id FROM users WHERE username = ?', [username], async (err, results) => {
+            if (err) return res.json({ success: false, message: '数据库错误' });
+            if (results.length > 0) {
+                return res.json({ success: false, message: '用户名已存在' });
+            }
+            const hashedPassword = await bcrypt.hash(password, 10);
+            db.query('INSERT INTO users (username, password, avatar_url) VALUES (?, ?, ?)',
+                [username, hashedPassword, avatar_url], (err) => {
+                    if (err) return res.json({ success: false, message: '注册失败' });
+                    res.json({ success: true, message: '注册成功' });
+                });
+        });
+    });
+    
+    // 更新头像接口
+    app.post('/update-avatar', upload.single('avatar'), (req, res) => {
+        const username = req.body.username;
+        if (!username) {
+            return res.json({ success: false, message: '用户名缺失' });
+        }
+        const avatar_url = req.file ? `uploads/${req.file.filename}` : null;
+        if (!avatar_url) {
+            return res.json({ success: false, message: '未选择头像文件' });
+        }
+
+        db.query('UPDATE users SET avatar_url = ? WHERE username = ?', [avatar_url, username], (err) => {
+            if (err) {
+                return res.json({ success: false, message: '数据库更新失败' });
+            }
+            res.json({ success: true, avatar_url, message: '头像更新成功' });
+        });
+    });
+
 
 io.on('connection', (socket) => {
     console.log('A user connected');
@@ -39,8 +93,10 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 注册逻辑（加密密码）
-    socket.on('register', async ({ username, password }, callback) => {
+
+
+   /* // 注册逻辑（加密密码）
+    socket.on('register', async ({ username, password, avatar_url }, callback) => {
         db.query('SELECT id FROM users WHERE username = ?', [username], async (err, results) => {
             if (err) return callback({ success: false, message: '数据库错误' });
 
@@ -49,7 +105,7 @@ io.on('connection', (socket) => {
             } else {
                 try {
                     const hashedPassword = await bcrypt.hash(password, 10);  // ✅ 加密这里非常关键
-                    db.query('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err) => {
+                    db.query('INSERT INTO users (username, password, avatar_url) VALUES (?, ?, ?)', [username, hashedPassword, avatar_url || 'assets/default.jpg'], (err) => {
                         if (err) return callback({ success: false, message: '注册失败' });
                         callback({ success: true, message: '注册成功' });
                     });
@@ -58,29 +114,35 @@ io.on('connection', (socket) => {
                 }
             }
         });
-    });
+    });*/
 
     // 登录
     socket.on('login', ({ username, password }, callback) => {
-        db.query('SELECT id, password FROM users WHERE username = ?', [username], async (err, results) => {
+        db.query('SELECT id, password, avatar_url FROM users WHERE username = ?', [username], async (err, results) => {
              if (err || results.length === 0) {
             callback({ success: false, message: 'Invalid username or password' });
             } else {
                 const user = results[0];
                 const userId = user.id; // 在这里获取到 userId
+                const avatarUrl = user.avatar_url;
 
                 onlineUsers[socket.id] = username;
                 userSockets[username] = socket.id;
 
+                 // PATCH: 增加 bcrypt.compare 校验密码
+                const ok = await bcrypt.compare(password, user.password);
+                if (!ok) {
+                    return callback({ success: false, message: 'Invalid username or password' });
+                }
+                // 发送个人资料信息
+                socket.emit('profile info', { username, avatar_url: avatarUrl });
+            
                 // 成功登录后，向客户端发送好友列表
-                db.query('SELECT u.username FROM friends f JOIN users u ON f.friend_id = u.id WHERE f.user_id = ?', [userId], (err, friendResults) => {
+                db.query('SELECT u.username, u.avatar_url FROM friends f JOIN users u ON f.friend_id = u.id WHERE f.user_id = ?', [userId], (err, friendResults) => {
                     if (err) {
-                        console.error('Error fetching friends:', err);
-                        // 即使获取好友列表失败，登录也应成功
                         socket.emit('friends list', []);
                     } else {
-                        const friends = friendResults.map(row => row.username);
-                        socket.emit('friends list', friends);
+                        socket.emit('friends list', friendResults);
                     }
                 });
 
@@ -99,6 +161,16 @@ io.on('connection', (socket) => {
         });
     });
 
+    // 更新头像
+    socket.on('update avatar', ({ avatar_url }, callback) => {
+    const username = onlineUsers[socket.id];
+    if (!username) return callback({ success: false });
+    db.query('UPDATE users SET avatar_url = ? WHERE username = ?', [avatar_url, username], (err) => {
+        if (err) return callback({ success: false });
+        callback({ success: true });
+        socket.emit('avatar updated', avatar_url);
+    });
+});
 
     
     //当客户端发送请求时，查找用户并将其添加到 friends 表中。
@@ -227,38 +299,48 @@ io.on('connection', (socket) => {
     // 聊天消息
     socket.on('chat message', (msg) => {
         const username = onlineUsers[socket.id];
-        // 将消息保存到数据库
-        db.query('INSERT INTO messages (sender, receiver, msg) VALUES (?, ?, ?)', [username, 'general', msg], (err) => {
-            if (err) console.error('Error saving group message:', err);
+        db.query('SELECT avatar_url FROM users WHERE username = ?', [username], (err, results) => {
+            const avatar_url =
+                !err && results.length > 0 ? results[0].avatar_url : 'assets/default.jpg';
+            db.query(
+                'INSERT INTO messages (sender, receiver, msg) VALUES (?, ?, ?)',
+                [username, 'general', msg]
+            );
+            io.emit('chat message', { username, avatar_url, msg });
         });
-        // 广播消息给所有在线用户
-        io.emit('chat message', { username: username, msg: msg });
     });
 
-    // 在现有的 'chat message' 事件下方添加
+    // 私聊消息（扁平化结构）
     socket.on('private message', ({ to, msg }) => {
-    const fromUsername = onlineUsers[socket.id];
-    const toSocketId = userSockets[to];
+        const fromUsername = onlineUsers[socket.id];
+        const toSocketId = userSockets[to];
 
-    if (!msg || !msg.trim()) {
-        socket.emit('system message', '消息不能为空。');
-        return;
-    }
+        db.query('SELECT avatar_url FROM users WHERE username = ?', [fromUsername], (err, results) => {
+            const avatar_url =
+                !err && results.length > 0 ? results[0].avatar_url : 'assets/default.jpg';
 
-    // 关键修改：将私聊消息保存到数据库
-    db.query('INSERT INTO messages (sender, receiver, msg) VALUES (?, ?, ?)', [fromUsername, to, msg], (err) => {
-        if (err) {
-            console.error('Error saving private message:', err);
-            return;
-        }
+            db.query(
+                'INSERT INTO messages (sender, receiver, msg) VALUES (?, ?, ?)',
+                [fromUsername, to, msg]
+            );
 
-        // 如果用户在线，发送实时消息
-        if (toSocketId && toSocketId !== socket.id) {
-            io.to(toSocketId).emit('private message', { from: fromUsername, msg });
-        } 
-        socket.emit('private message', { from: fromUsername, to: to, msg: msg});
+            // 发给接收方
+            if (toSocketId && toSocketId !== socket.id) {
+                io.to(toSocketId).emit('private message', {
+                    username: fromUsername,
+                    avatar_url,
+                    msg
+                });
+            }
+
+            // 发给自己
+            socket.emit('private message', {
+                username: fromUsername,
+                avatar_url,
+                msg
+            });
+        });
     });
-});
 
     // 新增 'load history' 事件
     socket.on('load history', (data) => {
