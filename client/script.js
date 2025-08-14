@@ -16,6 +16,7 @@ const loginAvatar = document.getElementById('login-avatar');
 const changeAvatarBtn = document.getElementById('change-avatar-btn');
 const newAvatarInput = document.getElementById('new-avatar');
 const sendBtn = document.getElementById('sendBtn');
+const messageInput = document.getElementById('messageInput');
 
 let isRegisterMode = false;
 
@@ -110,6 +111,14 @@ sendBtn.onclick = () => {
     }
     messageInput.value = '';
 };
+
+// 绑定回车事件
+messageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { // 按下 Enter 且不是 Shift+Enter
+        e.preventDefault(); // 阻止换行
+        sendBtn.click();    // 触发发送按钮点击事件
+    }
+});
 
 // 更改头像
 changeAvatarBtn.onclick = () => {

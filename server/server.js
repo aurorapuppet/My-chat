@@ -14,13 +14,18 @@ const io = new Server(server);
 const multer = require('multer');
 const path = require('path');
 
+require('dotenv').config();
+
+
 // MySQL连接配置
 const db = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '54051496y',
-    database: 'chat_app'
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT
 });
+
 
 const onlineUsers = {}; // socket.id -> username
 const userSockets = {}; // username -> socket.id
@@ -38,7 +43,20 @@ app.use(express.static('../client'));
             cb(null, Date.now() + path.extname(file.originalname));
         }
     });
-    const upload = multer({ storage });
+    const upload = multer({ 
+        storage ,
+        limits: { 
+            fileSize: 1 * 1024 * 1024 // 限制 1MB
+        },
+        fileFilter: (req, file, cb) => {
+            // 允许的 MIME 类型
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.mimetype)) {
+                return cb(new Error('只允许上传 JPG/PNG/GIF/WEBP 图片'), false);
+            }
+            cb(null, true);
+        }
+    });
 
     // 注册接口（HTTP）
     app.post('/register', upload.single('avatar'), async (req, res) => {
@@ -81,19 +99,6 @@ app.use(express.static('../client'));
 
 io.on('connection', (socket) => {
     console.log('A user connected');
-
-// 从数据库中载入存在的信息
-    db.query('SELECT sender, msg, timestamp FROM messages WHERE receiver = "general" ORDER BY timestamp ASC', (err, results) => {
-        if (err) {
-            console.error('Error fetching messages:', err);
-            return;
-        }
-        results.forEach(message => {
-            socket.emit('chat message', { username: message.sender, msg: message.msg });
-        });
-    });
-
-
 
    /* // 注册逻辑（加密密码）
     socket.on('register', async ({ username, password, avatar_url }, callback) => {
@@ -160,17 +165,6 @@ io.on('connection', (socket) => {
             }
         });
     });
-
-    // 更新头像
-    socket.on('update avatar', ({ avatar_url }, callback) => {
-    const username = onlineUsers[socket.id];
-    if (!username) return callback({ success: false });
-    db.query('UPDATE users SET avatar_url = ? WHERE username = ?', [avatar_url, username], (err) => {
-        if (err) return callback({ success: false });
-        callback({ success: true });
-        socket.emit('avatar updated', avatar_url);
-    });
-});
 
     
     //当客户端发送请求时，查找用户并将其添加到 friends 表中。

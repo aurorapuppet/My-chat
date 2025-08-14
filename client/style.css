@@ -117,14 +117,6 @@ body {
     background: #fff;
 }
 
-#messages li {
-    margin-bottom: 10px;
-    padding: 8px 12px;
-    border-radius: 6px;
-    background: #e1ffc7;
-    max-width: 60%;
-    word-break: break-all;
-}
 #chat-input {
     display: flex;
     padding: 15px 20px;
